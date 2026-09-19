@@ -13,7 +13,7 @@
     <header class="top">
       <div>
         <h1>MySiteCloner · Admin</h1>
-        <p>Monitorar licenças, quotas e checkouts Cakto</p>
+        <p>Licenças, uso, clientes e checkouts Cakto</p>
       </div>
       <div class="top-meta" id="topMeta" hidden>
         <span id="lastUpdated" class="last-updated">—</span>
@@ -27,85 +27,96 @@
 
     <section class="card" id="loginCard">
       <h2>Acesso</h2>
-      <p class="hint">Use o Admin secret do servidor. Não compartilhe este painel no Drive do cliente.</p>
-      <label>Admin secret<input id="adminSecret" type="password" autocomplete="current-password" /></label>
+      <p class="hint">Use a senha do Admin. Não compartilhe este painel no Drive do cliente.</p>
+      <label>Senha admin<input id="adminSecret" type="password" autocomplete="current-password" /></label>
       <button id="loginBtn" type="button">Entrar</button>
       <p id="loginMsg" class="msg"></p>
     </section>
 
-    <section class="card" id="dashCard" hidden>
-      <div class="stats" id="stats"></div>
-
-      <div class="toolbar">
-        <button type="button" id="refreshBtn">Atualizar</button>
-      </div>
-
-      <h2>Criar chave</h2>
-      <p class="hint">Informe o e-mail do cliente, o tipo de plano e a quantidade de clones ou meses.</p>
-      <div class="create-form" id="createForm">
-        <label>E-mail do cliente
-          <input id="createEmail" type="email" placeholder="cliente@email.com" autocomplete="off" />
-        </label>
-        <label>Tipo de plano
-          <select id="createType">
-            <option value="starter">Teste (quota de clones)</option>
-            <option value="monthly">Mensal (tempo)</option>
-            <option value="lifetime">Vitalício (ilimitado)</option>
-          </select>
-        </label>
-        <label id="quotaField">Clones permitidos
-          <input id="createQuota" type="number" min="1" max="999" value="1" />
-        </label>
-        <label id="monthsField" hidden>Duração
-          <select id="createMonths">
-            <option value="1">1 mês (+30 dias)</option>
-            <option value="3">3 meses (+90 dias)</option>
-            <option value="5">5 meses (+150 dias)</option>
-            <option value="12">12 meses (+365 dias)</option>
-            <option value="custom">Personalizado (dias)</option>
-          </select>
-        </label>
-        <label id="daysField" hidden>Dias personalizados
-          <input id="createDays" type="number" min="1" max="3650" value="30" />
-        </label>
-        <label>Observação (opcional)
-          <input id="createNotes" type="text" placeholder="Ex.: teste gratis / cortesia" />
-        </label>
-        <div class="create-actions">
-          <button type="button" id="createLicenseBtn">Gerar chave</button>
-          <button type="button" id="copyLastKeyBtn" class="ghost" hidden>Copiar última chave</button>
+    <section id="dashCard" hidden>
+      <div class="card">
+        <div class="stats" id="stats"></div>
+        <div class="toolbar">
+          <button type="button" id="refreshBtn">Atualizar</button>
         </div>
-        <p id="createMsg" class="msg"></p>
-        <p id="createKeyOut" class="key-out" hidden></p>
       </div>
 
-      <h2>Licenças</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Chave</th>
-              <th>Plano</th>
-              <th>Status</th>
-              <th>Quota</th>
-              <th>Expira</th>
-              <th>E-mail</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="licenseRows"></tbody>
-        </table>
+      <div class="card">
+        <h2>Criar chave</h2>
+        <p class="hint">E-mail do cliente + tipo (teste / mensal / vitalício).</p>
+        <div class="create-form" id="createForm">
+          <label>E-mail do cliente
+            <input id="createEmail" type="email" placeholder="cliente@email.com" autocomplete="off" />
+          </label>
+          <label>Tipo de plano
+            <select id="createType">
+              <option value="starter">Teste (quota de clones)</option>
+              <option value="monthly">Mensal (tempo)</option>
+              <option value="lifetime">Vitalício (ilimitado)</option>
+            </select>
+          </label>
+          <label id="quotaField">Clones permitidos
+            <input id="createQuota" type="number" min="1" max="999" value="1" />
+          </label>
+          <label id="monthsField" hidden>Duração
+            <select id="createMonths">
+              <option value="1">1 mês (+30 dias)</option>
+              <option value="3">3 meses (+90 dias)</option>
+              <option value="5">5 meses (+150 dias)</option>
+              <option value="12">12 meses (+365 dias)</option>
+              <option value="custom">Personalizado (dias)</option>
+            </select>
+          </label>
+          <label id="daysField" hidden>Dias personalizados
+            <input id="createDays" type="number" min="1" max="3650" value="30" />
+          </label>
+          <label>Observação (opcional)
+            <input id="createNotes" type="text" placeholder="Ex.: teste gratis / cortesia" />
+          </label>
+          <div class="create-actions">
+            <button type="button" id="createLicenseBtn">Gerar chave</button>
+            <button type="button" id="copyLastKeyBtn" class="ghost" hidden>Copiar última chave</button>
+          </div>
+          <p id="createMsg" class="msg"></p>
+          <p id="createKeyOut" class="key-out" hidden></p>
+        </div>
       </div>
 
-      <h2>Checkouts / IDs Cakto</h2>
-      <div class="form-grid">
-        <label>Checkout MySiteCloner - Teste<input id="checkoutStarter" /></label>
-        <label>Checkout MySiteCloner - Pro<input id="checkoutLifetime" /></label>
-        <label>Product ID Teste<input id="productStarter" /></label>
-        <label>Product ID Pro<input id="productLifetime" /></label>
+      <div class="card">
+        <div class="section-head">
+          <h2>Licenças</h2>
+          <span id="licenseCount" class="muted-count"></span>
+        </div>
+        <div class="filters">
+          <label class="filter-grow">Buscar e-mail / chave
+            <input id="searchInput" type="search" placeholder="ex.: @gmail.com ou MSC-US-" />
+          </label>
+          <label>Filtro
+            <select id="filterType">
+              <option value="all">Todos</option>
+              <option value="starter">Teste</option>
+              <option value="monthly">Mensal</option>
+              <option value="lifetime">Vitalício</option>
+              <option value="cakto">Comprou (Cakto)</option>
+              <option value="manual">Manual / admin</option>
+              <option value="active">Ativas na extensão</option>
+            </select>
+          </label>
+        </div>
+        <div id="licenseList" class="license-list"></div>
       </div>
-      <button type="button" id="saveSettingsBtn">Salvar settings</button>
-      <p id="settingsMsg" class="msg"></p>
+
+      <div class="card">
+        <h2>Checkouts / IDs Cakto</h2>
+        <div class="form-grid">
+          <label>Checkout MySiteCloner - Teste<input id="checkoutStarter" /></label>
+          <label>Checkout MySiteCloner - Pro<input id="checkoutLifetime" /></label>
+          <label>Product ID Teste<input id="productStarter" /></label>
+          <label>Product ID Pro<input id="productLifetime" /></label>
+        </div>
+        <button type="button" id="saveSettingsBtn">Salvar settings</button>
+        <p id="settingsMsg" class="msg"></p>
+      </div>
     </section>
   </div>
   <script src="config.js"></script>

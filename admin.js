@@ -7,7 +7,6 @@
   const REFRESH_MS = Number(cfg.REFRESH_MS) || 30000;
   const SECRET_KEY = "msc_admin_secret";
   const LIVE_KEY = "msc_admin_live";
-
   const MONTH_DAYS = { 1: 30, 3: 90, 5: 150, 12: 365 };
 
   const els = {
@@ -18,7 +17,10 @@
     loginBtn: document.getElementById("loginBtn"),
     loginMsg: document.getElementById("loginMsg"),
     stats: document.getElementById("stats"),
-    licenseRows: document.getElementById("licenseRows"),
+    licenseList: document.getElementById("licenseList"),
+    licenseCount: document.getElementById("licenseCount"),
+    searchInput: document.getElementById("searchInput"),
+    filterType: document.getElementById("filterType"),
     refreshBtn: document.getElementById("refreshBtn"),
     createEmail: document.getElementById("createEmail"),
     createType: document.getElementById("createType"),
@@ -47,39 +49,29 @@
   let liveTimer = null;
   let refreshing = false;
   let lastCreatedKey = "";
+  let allLicenses = [];
 
   function getSecret() {
     return localStorage.getItem(SECRET_KEY) || "";
   }
-
   function setSecret(v) {
     localStorage.setItem(SECRET_KEY, v);
   }
-
   function clearSecret() {
     localStorage.removeItem(SECRET_KEY);
   }
-
   function isLiveEnabled() {
     const stored = localStorage.getItem(LIVE_KEY);
     if (stored == null) return true;
     return stored === "1";
   }
-
   function setLiveEnabled(on) {
     localStorage.setItem(LIVE_KEY, on ? "1" : "0");
   }
 
   function formatNow() {
     try {
-      return new Date().toLocaleString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
+      return new Date().toLocaleString("pt-BR");
     } catch (_) {
       return new Date().toISOString();
     }
@@ -88,23 +80,45 @@
   function setLastUpdated(ok) {
     if (!els.lastUpdated) return;
     els.lastUpdated.textContent = ok
-      ? "Última atualização: " + formatNow()
-      : "Falha ao atualizar · " + formatNow();
+      ? "Atualizado: " + formatNow()
+      : "Falha · " + formatNow();
   }
 
   function planLabel(billing) {
     const b = String(billing || "").toLowerCase();
-    if (b === "starter") {
-      return { text: "MySiteCloner - Teste", cls: "is-test" };
+    if (b === "starter") return { text: "Teste", cls: "is-test" };
+    if (b === "monthly") return { text: "Mensal", cls: "is-month" };
+    return { text: "Vitalício", cls: "is-pro" };
+  }
+
+  function statusLabel(status) {
+    const s = String(status || "").toLowerCase();
+    if (s === "active") return { text: "Ativa", cls: "is-active" };
+    if (s === "pending") return { text: "Pendente", cls: "is-pending" };
+    if (s === "expired") return { text: "Expirada", cls: "is-bad" };
+    if (s === "revoked" || s === "refunded") return { text: s, cls: "is-bad" };
+    return { text: s || "—", cls: "" };
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "—";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "—";
+    try {
+      return d.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (_) {
+      return String(value).slice(0, 16);
     }
-    if (b === "monthly") {
-      return { text: "MySiteCloner - Pro (mensal)", cls: "is-month" };
-    }
-    return { text: "MySiteCloner - Pro", cls: "is-pro" };
   }
 
   function formatExpiry(expiresAt) {
-    if (!expiresAt) return "—";
+    if (!expiresAt) return "Sem expiração";
     const d = new Date(expiresAt);
     if (Number.isNaN(d.getTime())) return "—";
     try {
@@ -120,10 +134,16 @@
     return d.toISOString();
   }
 
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   async function api(action, payload) {
-    if (!API || !ANON) {
-      throw new Error("config.js incompleto");
-    }
+    if (!API || !ANON) throw new Error("config.js incompleto");
     const res = await fetch(API, {
       method: "POST",
       headers: {
@@ -136,21 +156,43 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      throw new Error(
-        (data && (data.message || data.error)) || "Falha na API admin"
-      );
+      throw new Error((data && (data.message || data.error)) || "Falha na API admin");
     }
     return data;
+  }
+
+  function usageText(lic) {
+    const used = Number(lic.quota_used || 0);
+    if (lic.quota_limit == null) return used + " usos · ∞";
+    return used + " / " + lic.quota_limit + " clones";
+  }
+
+  function originMeta(lic) {
+    const source = String(lic.source || "").toLowerCase();
+    if (source === "cakto") {
+      return {
+        text: lic.origin_label || "Cakto · compra",
+        cls: "is-cakto",
+      };
+    }
+    return {
+      text: lic.origin_label || "Manual / admin",
+      cls: "is-manual",
+    };
   }
 
   function renderStats(stats) {
     const items = [
       ["Total", stats.total],
       ["Ativas", stats.active],
+      ["Pendentes", stats.pending],
       ["Teste", stats.starter],
-      ["Pro", stats.lifetime],
       ["Mensal", stats.monthly],
+      ["Vitalício", stats.lifetime],
       ["Cakto", stats.from_cakto],
+      ["Manual", stats.from_manual],
+      ["Dispositivos", stats.devices],
+      ["Clones usados", stats.clones_used],
     ];
     els.stats.innerHTML = items
       .map(
@@ -160,40 +202,77 @@
       .join("");
   }
 
-  function quotaLabel(lic) {
-    if (lic.quota_limit == null) return "∞";
-    return `${lic.quota_used || 0}/${lic.quota_limit}`;
+  function filteredLicenses() {
+    const q = String(els.searchInput.value || "").trim().toLowerCase();
+    const f = els.filterType.value;
+    return allLicenses.filter((lic) => {
+      if (f === "starter" && lic.billing_type !== "starter") return false;
+      if (f === "monthly" && lic.billing_type !== "monthly") return false;
+      if (f === "lifetime" && lic.billing_type !== "lifetime") return false;
+      if (f === "cakto" && lic.source !== "cakto") return false;
+      if (f === "manual" && lic.source !== "manual") return false;
+      if (f === "active" && !(Number(lic.devices_active || 0) > 0)) return false;
+      if (!q) return true;
+      const hay = [
+        lic.email,
+        lic.license_key,
+        lic.customer_name,
+        lic.notes,
+        lic.cakto_order_id,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
   }
 
-  function escapeHtml(s) {
-    return String(s == null ? "" : s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
+  function renderLicenses() {
+    const list = filteredLicenses();
+    els.licenseCount.textContent = list.length + " de " + allLicenses.length;
+    if (!list.length) {
+      els.licenseList.innerHTML =
+        '<div class="empty">Nenhuma licença encontrada com esse filtro.</div>';
+      return;
+    }
 
-  function renderLicenses(list) {
-    els.licenseRows.innerHTML = (list || [])
+    els.licenseList.innerHTML = list
       .map((lic) => {
         const plan = planLabel(lic.billing_type);
+        const st = statusLabel(lic.status);
+        const origin = originMeta(lic);
         const keyRaw = String(lic.license_key || "");
         const keyAttr = keyRaw.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-        const keyHtml = escapeHtml(keyRaw);
-        return `<tr>
-          <td><code>${keyHtml}</code></td>
-          <td><span class="plan-tag ${plan.cls}">${plan.text}</span></td>
-          <td>${escapeHtml(lic.status)}</td>
-          <td>${quotaLabel(lic)}</td>
-          <td>${escapeHtml(formatExpiry(lic.expires_at))}</td>
-          <td>${escapeHtml(lic.email || "—")}</td>
-          <td class="actions">
-            <button type="button" data-act="copy" data-key="${keyAttr}">Copiar</button>
-            <button type="button" data-act="upgrade" data-key="${keyAttr}">Pro</button>
-            <button type="button" data-act="reset" data-key="${keyAttr}">Reset quota</button>
-            <button type="button" class="danger" data-act="revoke" data-key="${keyAttr}">Revogar</button>
-          </td>
-        </tr>`;
+        const devices = Number(lic.devices_active || 0);
+        const name = lic.customer_name ? " · " + escapeHtml(lic.customer_name) : "";
+        const notes = lic.notes
+          ? `<p class="lic-notes">${escapeHtml(lic.notes)}</p>`
+          : "";
+        return `<article class="lic-card">
+          <div class="lic-top">
+            <span class="plan-tag ${plan.cls}">${plan.text}</span>
+            <span class="status-tag ${st.cls}">${escapeHtml(st.text)}</span>
+            <span class="origin-tag ${origin.cls}">${escapeHtml(origin.text)}</span>
+          </div>
+          <p class="lic-email">${escapeHtml(lic.email || "Sem e-mail")}${name}</p>
+          <div class="lic-key">${escapeHtml(keyRaw)}</div>
+          <div class="lic-grid">
+            <div class="lic-field"><span>Uso</span><b>${escapeHtml(usageText(lic))}</b></div>
+            <div class="lic-field"><span>Dispositivos</span><b>${devices} ativo(s)</b></div>
+            <div class="lic-field"><span>Expira</span><b>${escapeHtml(formatExpiry(lic.expires_at))}</b></div>
+            <div class="lic-field"><span>Último uso</span><b>${escapeHtml(formatDateTime(lic.last_seen_at))}</b></div>
+            <div class="lic-field"><span>Criada</span><b>${escapeHtml(formatDateTime(lic.created_at))}</b></div>
+            <div class="lic-field"><span>Ativada</span><b>${escapeHtml(formatDateTime(lic.first_activated_at))}</b></div>
+            <div class="lic-field"><span>Pedido Cakto</span><b>${escapeHtml(lic.cakto_order_id || "—")}</b></div>
+            <div class="lic-field"><span>Produto</span><b>${escapeHtml(String(lic.cakto_product_id || "—").slice(0, 13))}${lic.cakto_product_id ? "…" : ""}</b></div>
+          </div>
+          ${notes}
+          <div class="actions">
+            <button type="button" class="small" data-act="copy" data-key="${keyAttr}">Copiar</button>
+            <button type="button" class="small" data-act="upgrade" data-key="${keyAttr}">Virar Pro</button>
+            <button type="button" class="small" data-act="reset" data-key="${keyAttr}">Reset uso</button>
+            <button type="button" class="small danger" data-act="revoke" data-key="${keyAttr}">Revogar</button>
+          </div>
+        </article>`;
       })
       .join("");
   }
@@ -204,8 +283,7 @@
     const isMonthly = type === "monthly";
     els.quotaField.hidden = !isStarter;
     els.monthsField.hidden = !isMonthly;
-    const custom = isMonthly && els.createMonths.value === "custom";
-    els.daysField.hidden = !custom;
+    els.daysField.hidden = !(isMonthly && els.createMonths.value === "custom");
   }
 
   function showCreatedKey(key, detail) {
@@ -239,11 +317,12 @@
     try {
       const [statsRes, listRes, settingsRes] = await Promise.all([
         api("stats"),
-        api("list_licenses", { limit: 200 }),
+        api("list_licenses", { limit: 300 }),
         api("get_settings"),
       ]);
       renderStats(statsRes.stats || {});
-      renderLicenses(listRes.licenses || []);
+      allLicenses = listRes.licenses || [];
+      renderLicenses();
       const s = settingsRes.settings || {};
       els.checkoutStarter.value = s.checkout_url_starter || "";
       els.checkoutLifetime.value = s.checkout_url_lifetime || "";
@@ -265,17 +344,13 @@
       liveTimer = null;
     }
   }
-
   function startLive() {
     stopLive();
     if (!isLiveEnabled() || els.dashCard.hidden) return;
     liveTimer = setInterval(() => {
-      refresh().catch(() => {
-        /* keep polling; status shown in lastUpdated */
-      });
+      refresh().catch(() => {});
     }, REFRESH_MS);
   }
-
   function showDashboard() {
     els.loginCard.hidden = true;
     els.dashCard.hidden = false;
@@ -284,14 +359,12 @@
     syncCreateFields();
     startLive();
   }
-
   function showLogin() {
     stopLive();
     els.dashCard.hidden = true;
     els.topMeta.hidden = true;
     els.loginCard.hidden = false;
   }
-
   function logout() {
     clearSecret();
     els.adminSecret.value = "";
@@ -312,28 +385,25 @@
       els.loginMsg.textContent = err.message || String(err);
     }
   });
-
   els.adminSecret.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       els.loginBtn.click();
     }
   });
-
   els.refreshBtn.addEventListener("click", () => {
     refresh().catch((e) => alert(e.message));
   });
-
   els.liveToggle.addEventListener("change", () => {
     setLiveEnabled(els.liveToggle.checked);
     if (els.liveToggle.checked) startLive();
     else stopLive();
   });
-
   els.logoutBtn.addEventListener("click", logout);
-
   els.createType.addEventListener("change", syncCreateFields);
   els.createMonths.addEventListener("change", syncCreateFields);
+  els.searchInput.addEventListener("input", renderLicenses);
+  els.filterType.addEventListener("change", renderLicenses);
 
   els.createLicenseBtn.addEventListener("click", async () => {
     els.createMsg.style.color = "var(--warn)";
@@ -342,23 +412,16 @@
       els.createMsg.textContent = "Informe um e-mail válido.";
       return;
     }
-
     const type = els.createType.value;
     const notesExtra = String(els.createNotes.value || "").trim();
-    let payload = {
-      email: email,
-      source: "manual",
-      notes: notesExtra || "Admin painel",
-    };
+    let payload = { email: email, source: "manual", notes: notesExtra || "Admin painel" };
     let detail = "";
-
     try {
       if (type === "starter") {
         const quota = Math.max(1, Number(els.createQuota.value) || 1);
         payload.billing_type = "starter";
         payload.quota_limit = quota;
-        payload.notes =
-          (notesExtra || "Admin · teste") + " · " + quota + " clone(s)";
+        payload.notes = (notesExtra || "Admin · teste") + " · " + quota + " clone(s)";
         detail = quota + " clone(s)";
       } else if (type === "monthly") {
         const monthsSel = els.createMonths.value;
@@ -369,8 +432,7 @@
         payload.billing_type = "monthly";
         payload.quota_limit = null;
         payload.expires_at = expiresInDays(days);
-        payload.notes =
-          (notesExtra || "Admin · mensal") + " · +" + days + " dias";
+        payload.notes = (notesExtra || "Admin · mensal") + " · +" + days + " dias";
         detail = "+" + days + " dias · até " + formatExpiry(payload.expires_at);
       } else {
         payload.billing_type = "lifetime";
@@ -378,7 +440,6 @@
         payload.notes = notesExtra || "Admin · vitalício";
         detail = "vitalício";
       }
-
       els.createMsg.textContent = "Gerando…";
       const data = await api("create_license", payload);
       const key =
@@ -421,7 +482,7 @@
     }
   });
 
-  els.licenseRows.addEventListener("click", async (e) => {
+  els.licenseList.addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-act]");
     if (!btn) return;
     const key = btn.getAttribute("data-key");
@@ -436,16 +497,16 @@
         await api("revoke_license", { license_key: key, reason: "admin_panel" });
       }
       if (act === "upgrade") {
-        await api("upgrade_lifetime", {
-          license_key: key,
-          reason: "admin_panel",
-        });
+        await api("upgrade_lifetime", { license_key: key, reason: "admin_panel" });
       }
       if (act === "reset") {
+        const lic = allLicenses.find((l) => l.license_key === key);
+        const limit =
+          lic && lic.quota_limit != null ? Number(lic.quota_limit) : 3;
         await api("set_quota", {
           license_key: key,
           quota_used: 0,
-          quota_limit: 3,
+          quota_limit: limit,
         });
       }
       await refresh();
