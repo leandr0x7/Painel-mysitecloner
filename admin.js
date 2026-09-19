@@ -268,8 +268,9 @@
           ${notes}
           <div class="actions">
             <button type="button" class="small" data-act="copy" data-key="${keyAttr}">Copiar</button>
+            <button type="button" class="small" data-act="add-quota" data-key="${keyAttr}">+ Testes</button>
             <button type="button" class="small" data-act="upgrade" data-key="${keyAttr}">Virar Pro</button>
-            <button type="button" class="small" data-act="reset" data-key="${keyAttr}">Reset uso</button>
+            <button type="button" class="small" data-act="reset" data-key="${keyAttr}">Zerar uso</button>
             <button type="button" class="small danger" data-act="revoke" data-key="${keyAttr}">Revogar</button>
           </div>
         </article>`;
@@ -491,6 +492,18 @@
       if (act === "copy") {
         await copyText(key);
         return;
+      }
+      if (act === "add-quota") {
+        const raw = prompt("Quantos testes extras adicionar?", "2");
+        if (raw == null) return;
+        const amount = Math.max(1, Math.min(100, parseInt(raw, 10) || 2));
+        const data = await api("add_quota", { license_key: key, amount: amount });
+        alert(
+          "+" +
+            amount +
+            " teste(s).\nRestantes agora: " +
+            (data.remaining != null ? data.remaining : "?")
+        );
       }
       if (act === "revoke") {
         if (!confirm("Revogar " + key + "?")) return;
