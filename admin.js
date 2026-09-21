@@ -269,6 +269,7 @@
           <div class="actions">
             <button type="button" class="small" data-act="copy" data-key="${keyAttr}">Copiar</button>
             <button type="button" class="small" data-act="add-quota" data-key="${keyAttr}">+ Testes</button>
+            <button type="button" class="small" data-act="set-monthly" data-key="${keyAttr}">+ Meses</button>
             <button type="button" class="small" data-act="upgrade" data-key="${keyAttr}">Virar Pro</button>
             <button type="button" class="small" data-act="reset" data-key="${keyAttr}">Zerar uso</button>
             <button type="button" class="small danger" data-act="revoke" data-key="${keyAttr}">Revogar</button>
@@ -503,6 +504,33 @@
             amount +
             " teste(s).\nRestantes agora: " +
             (data.remaining != null ? data.remaining : "?")
+        );
+      }
+      if (act === "set-monthly") {
+        const raw = prompt(
+          "Quantos meses liberar?\nUse: 1, 3, 5 ou 12",
+          "5"
+        );
+        if (raw == null) return;
+        const months = String(raw).trim();
+        if (["1", "3", "5", "12"].indexOf(months) < 0) {
+          alert("Informe 1, 3, 5 ou 12.");
+          return;
+        }
+        const data = await api("set_monthly", {
+          license_key: key,
+          months: months,
+        });
+        const until = data.expires_at
+          ? new Date(data.expires_at).toLocaleDateString("pt-BR")
+          : "?";
+        alert(
+          "Plano mensal (" +
+            months +
+            " mese(s)) aplicado.\nVálido até: " +
+            until +
+            "\nMesma chave: " +
+            key
         );
       }
       if (act === "revoke") {
