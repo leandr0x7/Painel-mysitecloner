@@ -175,6 +175,12 @@
         cls: "is-cakto",
       };
     }
+    if (source === "mercadopago") {
+      return {
+        text: "Mercado Pago",
+        cls: "is-cakto",
+      };
+    }
     return {
       text: lic.origin_label || "Manual / admin",
       cls: "is-manual",
